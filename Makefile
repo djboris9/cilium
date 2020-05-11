@@ -267,21 +267,6 @@ docker-cilium-image-for-developers:
 
 docker-image: clean docker-image-no-clean docker-operator-image docker-plugin-image docker-hubble-relay-image
 
-docker-image-no-clean: GIT_VERSION
-	$(QUIET)$(CONTAINER_ENGINE) build \
-		--build-arg LOCKDEBUG=${LOCKDEBUG} \
-		--build-arg V=${V} \
-		--build-arg LIBNETWORK_PLUGIN=${LIBNETWORK_PLUGIN} \
-		--build-arg CILIUM_SHA=$(firstword $(GIT_VERSION)) \
-		-t "cilium/cilium:$(DOCKER_IMAGE_TAG)" .
-	$(QUIET)$(CONTAINER_ENGINE) tag cilium/cilium:$(DOCKER_IMAGE_TAG) cilium/cilium:$(DOCKER_IMAGE_TAG)-${GOARCH}
-	$(QUIET)echo "Push like this when ready:"
-	$(QUIET)echo "${CONTAINER_ENGINE} push cilium/cilium:$(DOCKER_IMAGE_TAG)-${GOARCH}"
-
-docker-cilium-manifest:
-	@$(ECHO_CHECK) contrib/scripts/push_manifest.sh cilium $(DOCKER_IMAGE_TAG)
-	$(QUIET) contrib/scripts/push_manifest.sh cilium $(DOCKER_IMAGE_TAG)
-
 DOCKER_BUILDKIT =
 DEV_DOCKERFILE_FILTER =
 ifeq ($(DOCKER_DEV_NOCACHE),)
@@ -310,6 +295,22 @@ $(DEV_BUILD_DIR):
 dev-build-update: check-status $(DEV_BUILD_DIR)
 	cd $(DEV_BUILD_DIR) && git fetch --depth=1 --no-tags && git reset --soft FETCH_HEAD
 
+docker-image-no-clean: GIT_VERSION $(DEV_DOCKERFILE) dev-build-update
+	$(QUIET)$(DOCKER_BUILDKIT) $(CONTAINER_ENGINE) build -f $(DEV_DOCKERFILE) \
+		--build-arg LOCKDEBUG=${LOCKDEBUG} \
+		--build-arg V=${V} \
+		--build-arg GIT_CHECKOUT=1 \
+		--build-arg LIBNETWORK_PLUGIN=${LIBNETWORK_PLUGIN} \
+		--build-arg CILIUM_SHA=$(firstword $(GIT_VERSION)) \
+		-t "cilium/cilium:$(DOCKER_IMAGE_TAG)" $(DEV_BUILD_DIR)
+	$(QUIET)$(CONTAINER_ENGINE) tag cilium/cilium:$(DOCKER_IMAGE_TAG) cilium/cilium:$(DOCKER_IMAGE_TAG)-${GOARCH}
+	$(QUIET)echo "Push like this when ready:"
+	$(QUIET)echo "${CONTAINER_ENGINE} push cilium/cilium:$(DOCKER_IMAGE_TAG)-${GOARCH}"
+
+docker-cilium-manifest:
+	@$(ECHO_CHECK) contrib/scripts/push_manifest.sh cilium $(DOCKER_IMAGE_TAG)
+	$(QUIET) contrib/scripts/push_manifest.sh cilium $(DOCKER_IMAGE_TAG)
+
 dev-docker-image: GIT_VERSION $(DEV_DOCKERFILE) dev-build-update
 	$(QUIET)$(DOCKER_BUILDKIT) $(CONTAINER_ENGINE) build -f $(DEV_DOCKERFILE) \
 		--build-arg LOCKDEBUG=${LOCKDEBUG} \
@@ -326,12 +327,18 @@ docker-cilium-dev-manifest:
 	@$(ECHO_CHECK) contrib/scripts/push_manifest.sh cilium-dev $(DOCKER_IMAGE_TAG)
 	$(QUIET) contrib/scripts/push_manifest.sh cilium-dev $(DOCKER_IMAGE_TAG)
 
-docker-operator-image: GIT_VERSION
-	$(QUIET)$(CONTAINER_ENGINE) build \
+$(DEV_BUILD_DIR).%.Dockerfile: %.Dockerfile Makefile
+	-mkdir -p $(dir $@)
+	cat $< $(DEV_DOCKERFILE_FILTER) > $@
+
+DEV_OPERATOR_DOCKERFILE := $(DEV_BUILD_DIR).cilium-operator.Dockerfile
+docker-operator-image: GIT_VERSION $(DEV_OPERATOR_DOCKERFILE) dev-build-update
+	$(QUIET)$(DOCKER_BUILDKIT) $(CONTAINER_ENGINE) build \
 		--build-arg LOCKDEBUG=${LOCKDEBUG} \
+		--build-arg GIT_CHECKOUT=1 \
 		--build-arg CILIUM_SHA=$(firstword $(GIT_VERSION)) \
-		-f cilium-operator.Dockerfile \
-		-t "cilium/operator:$(DOCKER_IMAGE_TAG)" .
+		-f $(DEV_OPERATOR_DOCKERFILE) \
+		-t "cilium/operator:$(DOCKER_IMAGE_TAG)" $(DEV_BUILD_DIR)
 	$(QUIET)echo "Push like this when ready:"
 	$(QUIET)echo "${CONTAINER_ENGINE} push cilium/operator:$(DOCKER_IMAGE_TAG)-${GOARCH}"
 
@@ -339,12 +346,14 @@ docker-operator-manifest:
 	@$(ECHO_CHECK) contrib/scripts/push_manifest.sh operator $(DOCKER_IMAGE_TAG)
 	$(QUIET) contrib/scripts/push_manifest.sh operator $(DOCKER_IMAGE_TAG)
 
-docker-plugin-image: GIT_VERSION
-	$(QUIET)$(CONTAINER_ENGINE) build \
+DEV_PLUGIN_DOCKERFILE := $(DEV_BUILD_DIR).cilium-docker-plugin.Dockerfile
+docker-plugin-image: GIT_VERSION $(DEV_PLUGIN_DOCKERFILE) dev-build-update
+	$(QUIET)$(DOCKER_BUILDKIT) $(CONTAINER_ENGINE) build \
 		--build-arg LOCKDEBUG=${LOCKDEUBG} \
+		--build-arg GIT_CHECKOUT=1 \
 		--build-arg CILIUM_SHA=$(firstword $(GIT_VERSION)) \
-		-f cilium-docker-plugin.Dockerfile \
-		-t "cilium/docker-plugin:$(DOCKER_IMAGE_TAG)" .
+		-f $(DEV_PLUGIN_DOCKERFILE) \
+		-t "cilium/docker-plugin:$(DOCKER_IMAGE_TAG)" $(DEV_BUILD_DIR)
 	$(QUIET)$(CONTAINER_ENGINE) tag cilium/docker-plugin:$(DOCKER_IMAGE_TAG) cilium/docker-plugin:$(DOCKER_IMAGE_TAG)-${GOARCH}
 	$(QUIET)echo "Push like this when ready:"
 	$(QUIET)echo "${CONTAINER_ENGINE} push cilium/docker-plugin:$(DOCKER_IMAGE_TAG)-${GOARCH}"
@@ -369,8 +378,12 @@ docker-cilium-builder-manifest:
 	@$(ECHO_CHECK) contrib/scripts/push_manifest.sh cilium-builder $(UTC_DATE)
 	$(QUIET) contrib/scripts/push_manifest.sh cilium-builder $(UTC_DATE)
 
-docker-hubble-relay-image:
-	$(QUIET)$(CONTAINER_ENGINE) build -f hubble-relay.Dockerfile -t "cilium/hubble-relay:$(DOCKER_IMAGE_TAG)" .
+DEV_HUBBLE_RELAY_DOCKERFILE := $(DEV_BUILD_DIR).hubble-relay.Dockerfile
+docker-hubble-relay-image: $(DEV_HUBBLE_RELAY_DOCKERFILE) dev-build-update
+	$(QUIET)$(DOCKER_BUILDKIT) $(CONTAINER_ENGINE) build \
+		--build-arg GIT_CHECKOUT=1 \
+		-f $(DEV_HUBBLE_RELAY_DOCKERFILE) \
+		-t "cilium/hubble-relay:$(DOCKER_IMAGE_TAG)" $(DEV_BUILD_DIR)
 	$(QUIET)$(CONTAINER_ENGINE) tag cilium/hubble-relay:$(DOCKER_IMAGE_TAG) cilium/hubble-relay:$(DOCKER_IMAGE_TAG)-${GOARCH}
 	$(QUIET)echo "Push like this when ready:"
 	$(QUIET)echo "${CONTAINER_ENGINE} push cilium/hubble-relay:$(DOCKER_IMAGE_TAG)-${GOARCH}"

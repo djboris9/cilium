@@ -1,3 +1,4 @@
+#
 FROM docker.io/library/golang:1.14.2 as builder
 ARG CILIUM_SHA=""
 LABEL cilium-sha=${CILIUM_SHA}
@@ -5,6 +6,8 @@ LABEL maintainer="maintainer@cilium.io"
 ADD . /go/src/github.com/cilium/cilium
 WORKDIR /go/src/github.com/cilium/cilium/operator
 ARG LOCKDEBUG
+ARG GIT_CHECKOUT
+RUN test -z $GIT_CHECKOUT || git checkout
 RUN make LOCKDEBUG=$LOCKDEBUG EXTRA_GO_BUILD_FLAGS="-tags operator_aws,operator_azure"
 
 FROM docker.io/library/alpine:3.9.3 as certs
