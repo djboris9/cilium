@@ -236,6 +236,9 @@ clean: clean-container clean-build
 clean-build:
 	-$(QUIET) rm -rf _build
 
+veryclean:
+	-$(QUIET) docker system prune -f
+
 install-bpf:
 	$(QUIET)$(INSTALL) -m 0750 -d $(DESTDIR)$(LOCALSTATEDIR)/lib/cilium
 	-rm -rf $(DESTDIR)$(LOCALSTATEDIR)/lib/cilium/bpf/*
