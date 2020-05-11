@@ -65,7 +65,8 @@ type CiliumNetworkPolicy struct {
 	Specs api.Rules `json:"specs,omitempty"`
 
 	// Status is the status of the Cilium policy rule
-	// +optional
+	//
+	// +kubebuilder:validation:Optional
 	Status CiliumNetworkPolicyStatus `json:"status"`
 }
 
@@ -92,7 +93,7 @@ type CiliumNetworkPolicyNodeStatus struct {
 	Error string `json:"error,omitempty"`
 
 	// LastUpdated contains the last time this status was updated
-	LastUpdated Timestamp `json:"lastUpdated,omitempty"`
+	LastUpdated metav1.Time `json:"lastUpdated,omitempty"`
 
 	// Revision is the policy revision of the repository which first implemented
 	// this policy.
@@ -128,8 +129,8 @@ func CreateCNPNodeStatus(enforcing, ok bool, cnpError error, rev uint64, annotat
 }
 
 // NewTimestamp creates a new Timestamp with the current time.Now()
-func NewTimestamp() Timestamp {
-	return Timestamp{time.Now()}
+func NewTimestamp() metav1.Time {
+	return metav1.Now()
 }
 
 // Timestamp is a wrapper of time.Time so that we can create our own
@@ -301,7 +302,7 @@ type CiliumClusterwideNetworkPolicy struct {
 	*CiliumNetworkPolicy
 
 	// Status is the status of the Cilium policy rule
-	// +optional
+	// +kubebuilder:validation:Optional
 	// The reason this field exists in this structure is due a bug in the k8s code-generator
 	// that doesn't create a `UpdateStatus` method because the field does not exist in
 	// the structure.
@@ -362,12 +363,12 @@ type EndpointStatus struct {
 
 	// Networking properties of the endpoint
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	Networking *EndpointNetworking `json:"networking,omitempty"`
 
 	// Encryption is the encryption configuration of the node
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	Encryption EncryptionSpec `json:"encryption,omitempty"`
 
 	Policy *EndpointPolicy `json:"policy,omitempty"`
@@ -659,23 +660,23 @@ type NodeSpec struct {
 
 	// Addresses is the list of all node addresses
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	Addresses []NodeAddress `json:"addresses,omitempty"`
 
 	// HealthAddressing is the addressing information for health
 	// connectivity checking
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	HealthAddressing HealthAddressingSpec `json:"health,omitempty"`
 
 	// Encryption is the encryption configuration of the node
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	Encryption EncryptionSpec `json:"encryption,omitempty"`
 
 	// ENI is the AWS ENI specific configuration
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	ENI eniTypes.ENISpec `json:"eni,omitempty"`
 
 	// Azure is the Azure IPAM specific configuration
@@ -687,7 +688,7 @@ type NodeSpec struct {
 	// populated by a user or it can be automatically populated by an IPAM
 	// operator
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	IPAM ipamTypes.IPAMSpec `json:"ipam,omitempty"`
 }
 
@@ -696,12 +697,12 @@ type NodeSpec struct {
 type HealthAddressingSpec struct {
 	// IPv4 is the IPv4 address of the IPv4 health endpoint
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	IPv4 string `json:"ipv4,omitempty"`
 
 	// IPv6 is the IPv6 address of the IPv4 health endpoint
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	IPv6 string `json:"ipv6,omitempty"`
 }
 
@@ -710,7 +711,7 @@ type EncryptionSpec struct {
 	// Key is the index to the key to use for encryption or 0 if encryption
 	// is disabled
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	Key int `json:"key,omitempty"`
 }
 
@@ -718,17 +719,17 @@ type EncryptionSpec struct {
 type NodeStatus struct {
 	// ENI is the AWS ENI specific status of the node
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	ENI eniTypes.ENIStatus `json:"eni,omitempty"`
 
 	// Azure is the Azure specific status of the node
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	Azure azureTypes.AzureStatus `json:"azure,omitempty"`
 
 	// IPAM is the IPAM status of the node
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	IPAM ipamTypes.IPAMStatus `json:"ipam,omitempty"`
 }
 

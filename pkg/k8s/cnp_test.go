@@ -135,7 +135,7 @@ func testUpdateCNPNodeStatusK8s(integrationTest bool, k8sVersion string, c *C) {
 				Enforcing:   true,
 				Revision:    1,
 				OK:          true,
-				LastUpdated: v2.Timestamp{},
+				LastUpdated: metav1.Time{},
 				Annotations: map[string]string{
 					"foo":                            "bar",
 					"i-will-disappear-in-2nd-update": "bar",
@@ -145,7 +145,7 @@ func testUpdateCNPNodeStatusK8s(integrationTest bool, k8sVersion string, c *C) {
 				Enforcing:   true,
 				Revision:    2,
 				OK:          true,
-				LastUpdated: v2.Timestamp{},
+				LastUpdated: metav1.Time{},
 			},
 		},
 	}
@@ -201,7 +201,7 @@ func testUpdateCNPNodeStatusK8s(integrationTest bool, k8sVersion string, c *C) {
 
 						// Ignore lastUpdated timestamp as it will mess up with
 						// the deepequals
-						n["lastUpdated"] = "0001-01-01T00:00:00Z"
+						n["lastUpdated"] = nil
 
 						// Remove k8s2 from the nodes status.
 						cnpsK8s1 := wantedCNPS.DeepCopy()
@@ -257,7 +257,7 @@ func testUpdateCNPNodeStatusK8s(integrationTest bool, k8sVersion string, c *C) {
 						// itself to the list of nodes.
 						// Ignore lastUpdated timestamp as it will mess up with
 						// the deepequals
-						cnpns["lastUpdated"] = "0001-01-01T00:00:00Z"
+						cnpns["lastUpdated"] = nil
 
 						// Remove k8s1 from the nodes status.
 						cnpsK8s2 := wantedCNPS.DeepCopy()
@@ -282,7 +282,7 @@ func testUpdateCNPNodeStatusK8s(integrationTest bool, k8sVersion string, c *C) {
 						return true, cnp.CiliumNetworkPolicy, nil
 					}
 					// codepath C-1.10) 3rd attempt
-					cnpns["lastUpdated"] = "0001-01-01T00:00:00Z"
+					cnpns["lastUpdated"] = nil
 
 					// Remove k8s2 from the nodes status.
 					cnpsK8s1 := wantedCNPS.DeepCopy()
@@ -348,10 +348,10 @@ func testUpdateCNPNodeStatusK8s(integrationTest bool, k8sVersion string, c *C) {
 
 		// Ignore timestamps
 		n := cnp.Status.Nodes["k8s1"]
-		n.LastUpdated = v2.Timestamp{}
+		n.LastUpdated = metav1.Time{}
 		cnp.Status.Nodes["k8s1"] = n
 		n = cnp.Status.Nodes["k8s2"]
-		n.LastUpdated = v2.Timestamp{}
+		n.LastUpdated = metav1.Time{}
 		cnp.Status.Nodes["k8s2"] = n
 
 		c.Assert(cnp.Status, checker.DeepEquals, wantedCNP.Status)
@@ -382,10 +382,10 @@ func testUpdateCNPNodeStatusK8s(integrationTest bool, k8sVersion string, c *C) {
 
 		// Ignore timestamps
 		n := cnp.Status.Nodes["k8s1"]
-		n.LastUpdated = v2.Timestamp{}
+		n.LastUpdated = metav1.Time{}
 		cnp.Status.Nodes["k8s1"] = n
 		n = cnp.Status.Nodes["k8s2"]
-		n.LastUpdated = v2.Timestamp{}
+		n.LastUpdated = metav1.Time{}
 		cnp.Status.Nodes["k8s2"] = n
 
 		c.Assert(cnp.Status, checker.DeepEquals, wantedCNP.Status)
