@@ -302,8 +302,15 @@ ifneq ($(shell git status --porcelain),)
 	test $(IGNORE_GIT_STATUS)
 endif
 
-dev-docker-image: check-status clean-build $(DEV_DOCKERFILE) GIT_VERSION
-	git clone --no-checkout --no-local --depth 1 . $(DEV_BUILD_DIR)
+$(DEV_BUILD_DIR):
+	-mkdir -p $(dir $@)
+	git clone --no-checkout --no-local --depth 1 . $@
+	cd $@ && git remote set-url origin '../../.'
+
+dev-build-update: check-status $(DEV_BUILD_DIR)
+	cd $(DEV_BUILD_DIR) && git fetch --depth=1 --no-tags && git reset --soft FETCH_HEAD
+
+dev-docker-image: GIT_VERSION $(DEV_DOCKERFILE) dev-build-update
 	$(QUIET)$(DOCKER_BUILDKIT) $(CONTAINER_ENGINE) build -f $(DEV_DOCKERFILE) \
 		--build-arg LOCKDEBUG=${LOCKDEBUG} \
 		--build-arg V=${V} \
