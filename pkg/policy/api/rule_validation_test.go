@@ -497,6 +497,41 @@ func (s *PolicyAPITestSuite) TestInvalidEndpointSelectors(c *C) {
 
 }
 
+func (s *PolicyAPITestSuite) TestNodeSelector(c *C) {
+	// Operator in MatchExpressions is invalid, so sanitization should fail.
+	labelSel := &slim_metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"any.foo": "bar",
+			"k8s.baz": "alice",
+		},
+		MatchExpressions: []slim_metav1.LabelSelectorRequirement{
+			{
+				Key:      "any.foo",
+				Operator: "asdfasdfasdf",
+				Values:   []string{"default"},
+			},
+		},
+	}
+	invalidSel := NewESFromK8sLabelSelector(labels.LabelSourceK8sKeyPrefix, labelSel)
+	invalidNodeSelectorRule := Rule{
+		NodeSelector: invalidSel,
+	}
+	err := invalidNodeSelectorRule.Sanitize()
+	c.Assert(err.Error(), Equals,
+		"invalid label selector: matchExpressions[0].operator: Invalid value: \"asdfasdfasdf\": not a valid selector operator")
+
+	invalidRuleBothSelectors := Rule{
+		EndpointSelector: WildcardEndpointSelector,
+		NodeSelector:     WildcardEndpointSelector,
+	}
+	err = invalidRuleBothSelectors.Sanitize()
+	c.Assert(err.Error(), Equals, "rule cannot have both EndpointSelector and NodeSelector")
+
+	invalidRuleNoSelector := Rule{}
+	err = invalidRuleNoSelector.Sanitize()
+	c.Assert(err.Error(), Equals, "rule must have one of EndpointSelector or NodeSelector")
+}
+
 func (s *PolicyAPITestSuite) TestTooManyPortsRule(c *C) {
 
 	var portProtocols []PortProtocol

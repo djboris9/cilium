@@ -54,7 +54,7 @@ const (
 
 	// CustomResourceDefinitionSchemaVersion is semver-conformant version of CRD schema
 	// Used to determine if CRD needs to be updated in cluster
-	CustomResourceDefinitionSchemaVersion = "1.18"
+	CustomResourceDefinitionSchemaVersion = "1.19"
 
 	// CustomResourceDefinitionSchemaVersionKey is key to label which holds the CRD schema version
 	CustomResourceDefinitionSchemaVersionKey = "io.cilium.k8s.crd.schema.version"
@@ -1452,6 +1452,14 @@ var (
 		Required: []string{
 			"endpointSelector",
 		},
+		OneOf: []apiextensionsv1beta1.JSONSchemaProps{
+			{
+				Required: []string{"endpointSelector"},
+			},
+			{
+				Required: []string{"nodeSelector"},
+			},
+		},
 		Properties: map[string]apiextensionsv1beta1.JSONSchemaProps{
 			"Description": {
 				Description: "Description is a free form string, it can be used by the creator " +
@@ -1468,6 +1476,7 @@ var (
 				},
 			},
 			"endpointSelector": EndpointSelector,
+			"nodeSelector":     EndpointSelector,
 			"ingress": {
 				Description: "Ingress is a list of IngressRule which are enforced at ingress. " +
 					"If omitted or empty, this rule does not apply at ingress.",
