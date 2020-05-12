@@ -523,6 +523,9 @@ func init() {
 	flags.Bool(option.EnableSessionAffinity, false, "Enable support for service session affinity")
 	option.BindEnv(option.EnableSessionAffinity)
 
+	flags.Bool(option.EnableHostFirewall, false, "Enable host network policies")
+	option.BindEnv(option.EnableHostFirewall)
+
 	flags.String(option.LibDir, defaults.LibraryPath, "Directory path to store runtime build environment")
 	option.BindEnv(option.LibDir)
 
@@ -1127,6 +1130,17 @@ func initEnv(cmd *cobra.Command) {
 		if !probe.HaveFullLPM() {
 			log.Fatal("BPF ip-masq-agent needs kernel 4.16 or newer")
 		}
+	}
+
+	if option.Config.EnableHostFirewall && len(option.Config.Devices) == 0 {
+		device, err := linuxdatapath.NodeDeviceNameWithDefaultRoute()
+		if err != nil {
+			msg := "Host firewall's external facing device could not be determined. Use --device to specify."
+			log.WithError(err).Fatal(msg)
+		}
+		log.WithField(logfields.Interface, device).
+			Info("Using auto-derived device for host firewall")
+		option.Config.Devices = []string{device}
 	}
 
 	// If there is one device specified, use it to derive better default
