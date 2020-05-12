@@ -188,6 +188,34 @@ ipv6_host_policy_egress(struct __ctx_buff *ctx, __u32 srcID) {
 	if (hdrlen < 0)
 		return hdrlen;
 	l4_off = l3_off + hdrlen;
+
+#ifdef ENABLE_SERVICES
+# if !defined(ENABLE_HOST_SERVICES_FULL) || \
+     (defined(ENABLE_EXTERNAL_IP) && !defined(BPF_HAVE_NETNS_COOKIE))
+	{
+		struct csum_offset csum_off = {};
+		struct lb6_service *svc;
+		struct lb6_key key = {};
+
+		ret = lb6_extract_key(ctx, &tuple, l4_off, &key, &csum_off,
+				      CT_EGRESS);
+		if (IS_ERR(ret) && ret != DROP_UNKNOWN_L4)
+			return ret;
+
+		if (ret != DROP_UNKNOWN_L4 &&
+		    (svc = lb6_lookup_service(&key)) != NULL) {
+			ret = lb6_local(get_ct_map6(&tuple), ctx, l3_off,
+					l4_off, &csum_off, &key, &tuple, svc,
+					&ct_state_new);
+			if (IS_ERR(ret))
+				return ret;
+		}
+	}
+# endif /* !ENABLE_HOST_SERVICES_FULL || ENABLE_EXTERNAL_IP && !BPF_HAVE_NETNS_COOKIE */
+#endif /* ENABLE_SERVICES */
+
+	ipv6_addr_copy(&orig_dip, (union v6addr *) &tuple.daddr);
+
 	ret = ct_lookup6(get_ct_map6(&tuple), &tuple, ctx, l4_off, CT_EGRESS,
 			 &ct_state, &monitor);
 	if (ret < 0)
@@ -217,6 +245,7 @@ ipv6_host_policy_egress(struct __ctx_buff *ctx, __u32 srcID) {
 		send_policy_verdict_notify(ctx, dstID, tuple.dport,
 					   tuple.nexthdr, POLICY_EGRESS, 1,
 					   verdict, policy_match_type);
+ct_recreate6:
 		ct_state_new.src_sec_id = HOST_ID;
 		ret = ct_create6(get_ct_map6(&tuple), &CT_MAP_ANY6, &tuple,
 				 ctx, CT_EGRESS, &ct_state_new, verdict > 0);
@@ -225,6 +254,13 @@ ipv6_host_policy_egress(struct __ctx_buff *ctx, __u32 srcID) {
 		break;
 
 	case CT_ESTABLISHED:
+		/* Did we end up at a stale non-service entry? Recreate if so. */
+		if (unlikely(ct_state.rev_nat_index != ct_state_new.rev_nat_index)) {
+			ct_delete6(get_ct_map6(&tuple), &tuple, ctx);
+			goto ct_recreate6;
+		}
+		break;
+
 	case CT_RELATED:
 	case CT_REPLY:
 		break;
@@ -243,6 +279,7 @@ ipv6_host_policy_ingress(struct __ctx_buff *ctx, __u32 *srcID) {
 	__u32 monitor = 0, dstID = WORLD_ID;
 	struct remote_endpoint_info *info;
 	int ret, verdict, l4_off, hdrlen;
+	struct csum_offset csum_off = {};
 	struct ipv6_ct_tuple tuple = {};
 	union v6addr orig_sip;
 	void *data, *data_end;
@@ -272,6 +309,7 @@ ipv6_host_policy_ingress(struct __ctx_buff *ctx, __u32 *srcID) {
 	if (hdrlen < 0)
 		return hdrlen;
 	l4_off = ETH_HLEN + hdrlen;
+	csum_l4_offset_and_flags(tuple.nexthdr, &csum_off);
 	ret = ct_lookup6(get_ct_map6(&tuple), &tuple, ctx, l4_off, CT_INGRESS,
 			 &ct_state, &monitor);
 	if (ret < 0)
@@ -283,6 +321,13 @@ ipv6_host_policy_ingress(struct __ctx_buff *ctx, __u32 *srcID) {
 		*srcID = info->sec_label;
 	cilium_dbg(ctx, info ? DBG_IP_ID_MAP_SUCCEED6 : DBG_IP_ID_MAP_FAILED6,
 		   orig_sip.p4, *srcID);
+
+	if (unlikely(ct_state.rev_nat_index)) {
+		int ret_nat = lb6_rev_nat(ctx, l4_off, &csum_off,
+				   ct_state.rev_nat_index, &tuple, 0);
+		if (IS_ERR(ret_nat))
+			return ret_nat;
+	}
 
 	/* Perform policy lookup */
 	verdict = policy_can_access_ingress(ctx, *srcID, dstID, tuple.dport,
@@ -569,9 +614,9 @@ ipv4_host_policy_egress(struct __ctx_buff *ctx, __u32 srcID) {
 	struct ct_state ct_state_new = {}, ct_state = {};
 	int ret, verdict, l4_off, l3_off = ETH_HLEN;
 	__u8 policy_match_type = POLICY_MATCH_NONE;
+	__u32 dstID = 0, monitor = 0, orig_dip;
 	struct remote_endpoint_info *info;
 	struct ipv4_ct_tuple tuple = {};
-	__u32 dstID = 0, monitor = 0;
 	void *data, *data_end;
 	struct iphdr *ip4;
 
@@ -587,17 +632,45 @@ ipv4_host_policy_egress(struct __ctx_buff *ctx, __u32 srcID) {
 	tuple.daddr = ip4->daddr;
 	tuple.saddr = ip4->saddr;
 	l4_off = l3_off + ipv4_hdrlen(ip4);
+
+#ifdef ENABLE_SERVICES
+# if !defined(ENABLE_HOST_SERVICES_FULL) || \
+     (defined(ENABLE_EXTERNAL_IP) && !defined(BPF_HAVE_NETNS_COOKIE))
+	{
+		struct csum_offset csum_off = {};
+		struct lb4_service *svc;
+		struct lb4_key key = {};
+
+		ret = lb4_extract_key(ctx, ip4, l4_off, &key, &csum_off,
+				      CT_EGRESS);
+		if (IS_ERR(ret) && ret != DROP_UNKNOWN_L4)
+			return ret;
+
+		if (ret != DROP_UNKNOWN_L4 &&
+		    (svc = lb4_lookup_service(&key)) != NULL) {
+			ret = lb4_local(get_ct_map4(&tuple), ctx, l3_off,
+					l4_off, &csum_off, &key, &tuple, svc,
+					&ct_state_new, ip4->saddr);
+			if (IS_ERR(ret))
+				return ret;
+		}
+	}
+# endif /* !ENABLE_HOST_SERVICES_FULL || ENABLE_EXTERNAL_IP && !BPF_HAVE_NETNS_COOKIE */
+#endif /* ENABLE_SERVICES */
+
+	orig_dip = tuple.daddr;
+
 	ret = ct_lookup4(get_ct_map4(&tuple), &tuple, ctx, l4_off, CT_EGRESS,
 			 &ct_state, &monitor);
 	if (ret < 0)
 		return ret;
 
 	/* Retrieve destination identity. */
-	info = lookup_ip4_remote_endpoint(ip4->daddr);
+	info = lookup_ip4_remote_endpoint(orig_dip);
 	if (info != NULL && info->sec_label)
 		dstID = info->sec_label;
 	cilium_dbg(ctx, info ? DBG_IP_ID_MAP_SUCCEED4 : DBG_IP_ID_MAP_FAILED4,
-		   ip4->daddr, dstID);
+		   orig_dip, dstID);
 
 	/* Perform policy lookup. */
 	verdict = policy_can_egress4(ctx, &tuple, srcID, dstID,
@@ -616,6 +689,7 @@ ipv4_host_policy_egress(struct __ctx_buff *ctx, __u32 srcID) {
 		send_policy_verdict_notify(ctx, dstID, tuple.dport,
 					   tuple.nexthdr, POLICY_EGRESS, 0,
 					   verdict, policy_match_type);
+ct_recreate4:
 		ct_state_new.src_sec_id = HOST_ID;
 		ret = ct_create4(get_ct_map4(&tuple), &CT_MAP_ANY4, &tuple,
 				 ctx, CT_EGRESS, &ct_state_new, verdict > 0);
@@ -624,6 +698,13 @@ ipv4_host_policy_egress(struct __ctx_buff *ctx, __u32 srcID) {
 		break;
 
 	case CT_ESTABLISHED:
+		/* Did we end up at a stale non-service entry? Recreate if so. */
+		if (unlikely(ct_state.rev_nat_index != ct_state_new.rev_nat_index)) {
+			ct_delete4(get_ct_map4(&tuple), &tuple, ctx);
+			goto ct_recreate4;
+		}
+		break;
+
 	case CT_RELATED:
 	case CT_REPLY:
 		break;
@@ -642,6 +723,7 @@ ipv4_host_policy_ingress(struct __ctx_buff *ctx, __u32 *srcID) {
 	__u8 policy_match_type = POLICY_MATCH_NONE;
 	__u32 monitor = 0, dstID = WORLD_ID;
 	struct remote_endpoint_info *info;
+	struct csum_offset csum_off = {};
 	struct ipv4_ct_tuple tuple = {};
 	bool is_untracked_fragment = false;
 	void *data, *data_end;
@@ -672,6 +754,7 @@ ipv4_host_policy_ingress(struct __ctx_buff *ctx, __u32 *srcID) {
 	 */
 	is_untracked_fragment = ipv4_is_fragment(ip4);
 #endif
+	csum_l4_offset_and_flags(tuple.nexthdr, &csum_off);
 	ret = ct_lookup4(get_ct_map4(&tuple), &tuple, ctx, l4_off, CT_INGRESS,
 			 &ct_state, &monitor);
 	if (ret < 0)
@@ -683,6 +766,15 @@ ipv4_host_policy_ingress(struct __ctx_buff *ctx, __u32 *srcID) {
 		*srcID = info->sec_label;
 	cilium_dbg(ctx, info ? DBG_IP_ID_MAP_SUCCEED4 : DBG_IP_ID_MAP_FAILED4,
 		   ip4->saddr, *srcID);
+
+	if (unlikely(ret == CT_REPLY && ct_state.rev_nat_index &&
+		     !ct_state.loopback)) {
+		int ret_nat = lb4_rev_nat(ctx, l3_off, l4_off, &csum_off,
+				   &ct_state, &tuple,
+				   REV_NAT_F_TUPLE_SADDR);
+		if (IS_ERR(ret_nat))
+			return ret_nat;
+	}
 
 	/* Perform policy lookup */
 	verdict = policy_can_access_ingress(ctx, *srcID, dstID, tuple.dport,
