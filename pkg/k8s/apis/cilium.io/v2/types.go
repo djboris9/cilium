@@ -298,11 +298,21 @@ type CiliumNetworkPolicyList struct {
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:shortName={ccnp}
 
 // CiliumClusterwideNetworkPolicy is a Kubernetes third-party resource with an modified version
 // of CiliumNetworkPolicy which is cluster scoped rather than namespace scoped.
 type CiliumClusterwideNetworkPolicy struct {
-	*CiliumNetworkPolicy
+	// TODO: The following two fields are required (regardless of embedding
+	// CiliumNetworkPolicy below which bring these in), because controller-gen
+	// ignores structs when generating CRDs that do not have these fields.
+	// File an issue / upstream a fix and reference it here.
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata"`
+
+	// Embedded fields require json inline tag, source:
+	// https://github.com/kubernetes-sigs/controller-tools/issues/244
+	*CiliumNetworkPolicy `json:",inline"`
 
 	// Status is the status of the Cilium policy rule
 	// +kubebuilder:validation:Optional
