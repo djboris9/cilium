@@ -210,6 +210,10 @@ ipv6_host_policy_egress(struct __ctx_buff *ctx, __u32 srcID) {
 			if (IS_ERR(ret))
 				return ret;
 		}
+
+		/* Needed to pass 128k complexity limit. Measured on 4.9
+		 * verifier: 148991 insns before, 114907 after */
+		relax_verifier();
 	}
 # endif /* !ENABLE_HOST_SERVICES_FULL || ENABLE_EXTERNAL_IP && !BPF_HAVE_NETNS_COOKIE */
 #endif /* ENABLE_SERVICES */
@@ -432,6 +436,10 @@ handle_ipv6(struct __ctx_buff *ctx, __u32 secctx, bool from_host)
 		ret = ipv6_host_policy_egress(ctx, secctx);
 	else
 		ret = ipv6_host_policy_ingress(ctx, &remoteID);
+
+	/* Needed to pass 128k complexity limit. Measured on 4.9 verifier:
+	 * 173251 insns before, 148991 after. */
+	relax_verifier();
 	if (IS_ERR(ret))
 		return ret;
 
@@ -515,9 +523,11 @@ tail_handle_ipv6(struct __ctx_buff *ctx, bool from_host)
 	ctx_store_meta(ctx, CB_SRC_IDENTITY, 0);
 
 	ret = handle_ipv6(ctx, proxy_identity, from_host);
-	if (IS_ERR(ret))
+	if (IS_ERR(ret)) {
+		relax_verifier();
 		return send_drop_notify_error(ctx, proxy_identity, ret,
 					      CTX_ACT_DROP, METRIC_INGRESS);
+	}
 	return ret;
 }
 
@@ -966,9 +976,11 @@ tail_handle_ipv4(struct __ctx_buff *ctx, bool from_host)
 	ctx_store_meta(ctx, CB_SRC_IDENTITY, 0);
 
 	ret = handle_ipv4(ctx, proxy_identity, from_host);
-	if (IS_ERR(ret))
+	if (IS_ERR(ret)) {
+		relax_verifier();
 		return send_drop_notify_error(ctx, proxy_identity,
 					      ret, CTX_ACT_DROP, METRIC_INGRESS);
+	}
 	return ret;
 }
 
