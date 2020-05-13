@@ -1243,17 +1243,6 @@ var _ = Describe("K8sServicesTest", func() {
 					testDSR(64000)
 				})
 
-				SkipItIf(helpers.DoesNotExistNodeWithoutCilium, "Tests with direct routing, DSR and BPF MASQ", func() {
-					DeployCiliumOptionsAndDNS(kubectl, ciliumFilename, map[string]string{
-						"global.nodePort.mode":        "dsr",
-						"global.tunnel":               "disabled",
-						"global.autoDirectNodeRoutes": "true",
-						"global.bpfMasquerade":        "true",
-					})
-
-					testDSR(64001)
-				})
-
 				SkipItIf(helpers.DoesNotExistNodeWithoutCilium, "Tests with XDP, direct routing and SNAT", func() {
 					DeployCiliumOptionsAndDNS(kubectl, ciliumFilename, map[string]string{
 						"global.nodePort.acceleration": "testing-only",
