@@ -512,6 +512,7 @@ type EndpointIdentity struct {
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:shortName={ciliumid}
 
 // CiliumIdentity is a CRD that represents an identity managed by Cilium.
 // It is intended as a backing store for identity allocation, acting as the
