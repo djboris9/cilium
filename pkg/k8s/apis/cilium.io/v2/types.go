@@ -646,6 +646,7 @@ type CiliumEndpointList struct {
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:resource:singular="ciliumnode",path="ciliumnodes",scope="Cluster",shortName={cn,ciliumn}
 
 // CiliumNode represents a node managed by Cilium. It contains a specification
 // to control various node specific configuration aspects and a status section
@@ -675,10 +676,14 @@ type NodeAddress struct {
 
 // NodeSpec is the configuration specific to a node
 type NodeSpec struct {
+	// TODO(christarazi): Is this necessary?
+
 	// InstanceID is the identifier of the node. This is different from the
 	// node name which is typically the FQDN of the node. The InstanceID
 	// typically refers to the identifier used by the cloud provider or
 	// some other means of identification.
+	//
+	// +kubebuilder:validation:Optional
 	InstanceID string `json:"instance-id,omitempty"`
 
 	// Addresses is the list of all node addresses
@@ -704,7 +709,7 @@ type NodeSpec struct {
 
 	// Azure is the Azure IPAM specific configuration
 	//
-	// +optional
+	// +kubebuilder:validation:Optional
 	Azure azureTypes.AzureSpec `json:"azure,omitempty"`
 
 	// IPAM is the address management specification. This section can be
