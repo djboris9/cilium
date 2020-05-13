@@ -1811,8 +1811,9 @@ func (kub *Kubectl) GetDefaultIface() (string, error) {
 func (kub *Kubectl) DeleteCiliumDS() error {
 	// Do not assert on success in AfterEach intentionally to avoid
 	// incomplete teardown.
-
-	_ = kub.DeleteResource("ds", fmt.Sprintf("-n %s cilium", GetCiliumNamespace(GetCurrentIntegration())))
+	ns := GetCiliumNamespace(GetCurrentIntegration())
+	ginkgoext.By("DeleteCiliumDS(namespace=%q)", ns)
+	_ = kub.DeleteResource("ds", fmt.Sprintf("-n %s cilium", ns))
 	return kub.waitToDelete("Cilium", CiliumAgentLabel)
 }
 
