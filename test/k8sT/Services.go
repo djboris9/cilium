@@ -782,7 +782,7 @@ var _ = Describe("K8sServicesTest", func() {
 
 		// fromOutside=true tests session affinity implementation from lb.h, while
 		// fromOutside=false tests from  bpf_sock.c.
-		testSessionAffinity := func(fromOutside bool) {
+		testSessionAffinity := func(fromOutside, vxlan bool) {
 			var (
 				data   v1.Service
 				dstPod string
@@ -830,14 +830,28 @@ var _ = Describe("K8sServicesTest", func() {
 				}
 			}
 
+			By("Removing %s pod so that another pod is chosen", dstPod)
+
 			// Delete the pod, and check that a new backend is chosen
-			nodes, err := kubectl.GetPodsNodes(helpers.DefaultNamespace, dstPod)
-			Expect(err).Should(BeNil(), "Cannot get node name of %s pod", dstPod)
 			kubectl.DeleteResource("pod", dstPod).ExpectSuccess("Unable to delete %s pod", dstPod)
-			// Wait until the pod has been removed from the cilium endpoints list.
-			// Otherwise, the requests below might fail as the non-existing endpoint
-			// will be chosen.
-			kubectl.WaitForCiliumEndpointDeleted(nodes[dstPod], helpers.DefaultNamespace, dstPod)
+
+			// Wait until the replacement pod has been provisioned and appeared
+			// in the ipcache of the second node.
+			//
+			// The first wait should give enough time for cilium-agents to remove
+			// the deleted pod from the BPF LB maps, so that the next request won't
+			// choose the deleted pod.
+			//
+			// The second wait is needed to make sure that an IPCache entry of the
+			// new pod appears on the k8s1 node. Otherwise, if the new pod runs
+			// on k8s2 and a request below selects it, the request will be dropped
+			// in the vxlan mode (the tailcall IPV4_NODEPORT_NAT body won't pass
+			// the request to the encap routines, and instead it will be dropped
+			// due to failing fib_lookup).
+			waitPodsDs()
+			if fromOutside && vxlan {
+				time.Sleep(5 * time.Second)
+			}
 
 			for i := 1; i <= count; i++ {
 				if fromOutside {
@@ -1085,11 +1099,11 @@ var _ = Describe("K8sServicesTest", func() {
 					})
 
 					It("Tests NodePort with sessionAffinity", func() {
-						testSessionAffinity(false)
+						testSessionAffinity(false, true)
 					})
 
 					SkipItIf(helpers.DoesNotExistNodeWithoutCilium, "Tests NodePort with sessionAffinity from outside", func() {
-						testSessionAffinity(true)
+						testSessionAffinity(true, true)
 					})
 
 					It("Tests HealthCheckNodePort", func() {
@@ -1127,11 +1141,11 @@ var _ = Describe("K8sServicesTest", func() {
 					})
 
 					It("Tests NodePort with sessionAffinity", func() {
-						testSessionAffinity(false)
+						testSessionAffinity(false, false)
 					})
 
 					SkipItIf(helpers.DoesNotExistNodeWithoutCilium, "Tests NodePort with sessionAffinity from outside", func() {
-						testSessionAffinity(true)
+						testSessionAffinity(true, false)
 					})
 
 					It("Tests HealthCheckNodePort", func() {
