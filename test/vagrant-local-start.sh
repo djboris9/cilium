@@ -8,7 +8,7 @@ export LOCAL_BOX=k8s-box
 export LOCAL_BOXFILE=./.vagrant/${LOCAL_BOX}-package.box
 
 echo "destroying vms"
-i=1
+i=2
 while vagrant destroy k8s${i}-${K8S_VERSION} --force 2>/dev/null
 do
   (( i++ ))
@@ -29,7 +29,7 @@ echo "starting vms"
 export SERVER_BOX=$LOCAL_BOX
 export SERVER_VERSION=0
 unset PRELOAD_VM
-for i in $( seq 1 ${K8S_NODES} )
+for i in $( seq 2 ${K8S_NODES} )
 do
   echo "Starting k8s${i}-${K8S_VERSION}"
   vagrant up k8s${i}-${K8S_VERSION} --provision

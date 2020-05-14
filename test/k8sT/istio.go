@@ -35,9 +35,16 @@ var _ = Describe("K8sIstioTest", func() {
 		// installed.
 		istioSystemNamespace = "istio-system"
 
-		istioVersion = "1.5.2"
+		istioVersion = "1.5.4"
 
-		ciliumIstioctlURL = "https://github.com/cilium/istio/releases/download/" + istioVersion + "/cilium-istioctl-" + istioVersion + "-linux.tar.gz"
+		// Modifiers for pre-release testing, normally empty
+		prerelease = "-beta.1"
+		istioctlParams =
+			" --set values.pilot.image=docker.io/jrajahalme/istio_pilot:1.5.4" +
+			" --set values.global.proxy.image=docker.io/jrajahalme/istio_proxy:1.5.4" +
+			" --set values.global.proxy_init.image=docker.io/jrajahalme/istio_proxy:1.5.4"
+
+		ciliumIstioctlURL = "https://github.com/cilium/istio/releases/download/" + istioVersion + prerelease + "/cilium-istioctl-" + istioVersion + "-linux.tar.gz"
 		// istioServiceNames is the set of Istio services needed for the tests
 		istioServiceNames = []string{
 			"istio-ingressgateway",
@@ -79,7 +86,7 @@ var _ = Describe("K8sIstioTest", func() {
 		res.ExpectSuccess("unable to label namespace %q", helpers.DefaultNamespace)
 
 		By("Deplying Istio")
-		res = kubectl.Exec("./cilium-istioctl manifest apply -y")
+		res = kubectl.Exec("./cilium-istioctl manifest apply -y" + istioctlParams)
 		res.ExpectSuccess("unable to deploy Istio")
 	})
 
@@ -177,10 +184,10 @@ var _ = Describe("K8sIstioTest", func() {
 		})
 
 		// shouldConnect checks that srcPod can connect to dstURI.
-		shouldConnect := func(srcPod, dstURI string) bool {
+		shouldConnect := func(srcPod, srcContainer, dstURI string) bool {
 			By("Checking that %q can connect to %q", srcPod, dstURI)
-			res := kubectl.ExecPodCmd(
-				helpers.DefaultNamespace, srcPod, fmt.Sprintf("%s %s", wgetCommand, dstURI))
+			res := kubectl.ExecPodContainerCmd(
+				helpers.DefaultNamespace, srcPod, srcContainer, fmt.Sprintf("%s %s", wgetCommand, dstURI))
 			if !res.WasSuccessful() {
 				GinkgoPrint("Unable to connect from %q to %q: %s", srcPod, dstURI, res.OutputPrettyPrint())
 				return false
@@ -189,10 +196,10 @@ var _ = Describe("K8sIstioTest", func() {
 		}
 
 		// shouldNotConnect checks that srcPod cannot connect to dstURI.
-		shouldNotConnect := func(srcPod, dstURI string) bool {
+		shouldNotConnect := func(srcPod, srcContainer, dstURI string) bool {
 			By("Checking that %q cannot connect to %q", srcPod, dstURI)
-			res := kubectl.ExecPodCmd(
-				helpers.DefaultNamespace, srcPod, fmt.Sprintf("%s %s", wgetCommand, dstURI))
+			res := kubectl.ExecPodContainerCmd(
+				helpers.DefaultNamespace, srcPod, srcContainer, fmt.Sprintf("%s %s", wgetCommand, dstURI))
 			if res.WasSuccessful() {
 				GinkgoPrint("Was able to connect from %q to %q, but expected no connection: %s", srcPod, dstURI, res.OutputPrettyPrint())
 				return false
@@ -305,13 +312,13 @@ var _ = Describe("K8sIstioTest", func() {
 			err = helpers.WithTimeout(func() bool {
 				allGood := true
 
-				allGood = shouldConnect(reviewsPodV1.String(), formatAPI(ratings, apiPort, health)) && allGood
-				allGood = shouldNotConnect(reviewsPodV1.String(), formatAPI(ratings, apiPort, ratingsPath)) && allGood
+				allGood = shouldConnect(reviewsPodV1.String(), "reviews", formatAPI(ratings, apiPort, health)) && allGood
+				allGood = shouldNotConnect(reviewsPodV1.String(), "reviews", formatAPI(ratings, apiPort, ratingsPath)) && allGood
 
-				allGood = shouldConnect(productpagePodV1.String(), formatAPI(details, apiPort, health)) && allGood
+				allGood = shouldConnect(productpagePodV1.String(), "productpage", formatAPI(details, apiPort, health)) && allGood
 
-				allGood = shouldNotConnect(productpagePodV1.String(), formatAPI(ratings, apiPort, health)) && allGood
-				allGood = shouldNotConnect(productpagePodV1.String(), formatAPI(ratings, apiPort, ratingsPath)) && allGood
+				allGood = shouldNotConnect(productpagePodV1.String(), "productpage", formatAPI(ratings, apiPort, health)) && allGood
+				allGood = shouldNotConnect(productpagePodV1.String(), "productpage", formatAPI(ratings, apiPort, ratingsPath)) && allGood
 
 				return allGood
 			}, "Istio sidecar proxies are not configured", &helpers.TimeoutConfig{Timeout: helpers.HelperTimeout})
