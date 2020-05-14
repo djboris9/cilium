@@ -233,6 +233,8 @@ func createCEPCRD(clientset apiextensionsclient.Interface) error {
 		CRDName = CustomResourceDefinitionPluralName + "." + SchemeGroupVersion.Group
 	)
 
+	// TODO(christarazi): add the CRD bytes here from go-bindata
+
 	res := &apiextensionsv1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: CRDName,
@@ -369,6 +371,8 @@ func createIdentityCRD(clientset apiextensionsclient.Interface) error {
 
 		CRDName = CustomResourceDefinitionPluralName + "." + SchemeGroupVersion.Group
 	)
+
+	// TODO(christarazi): add the CRD bytes here from go-bindata
 
 	res := &apiextensionsv1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
